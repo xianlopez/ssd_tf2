@@ -1,8 +1,5 @@
-
-*.pyc
-
-weights/*
 __pychache__
-
+*.pyc
 .idea*
-
+weights/*
+logs/*

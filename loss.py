@@ -41,7 +41,7 @@ class SSDLoss(tf.losses.Loss):
         loss_loc = tf.reduce_sum(loss_loc)
         loss_loc = tf.cond(n_positives > 0, lambda: tf.divide(loss_loc, tf.cast(n_positives, tf.float32)),
                            lambda: tf.zeros([], tf.float32))
-        tf.summary.scalar('loss_loc', loss_loc)
+        # tf.summary.scalar('loss_loc', loss_loc)
 
         # Confidence loss:
         pos_loss_conf = tf.reduce_sum(prior_loss_conf * positives_mask_float)
@@ -49,13 +49,13 @@ class SSDLoss(tf.losses.Loss):
         loss_conf = pos_loss_conf + neg_loss_conf
         loss_conf = tf.cond(n_positives > 0, lambda: tf.divide(loss_conf, tf.cast(n_positives, tf.float32)),
                             lambda: tf.zeros([], tf.float32))
-        tf.summary.scalar('loss_conf', loss_conf)
+        # tf.summary.scalar('loss_conf', loss_conf)
 
         # Regularization is done outside.
 
         # Total loss:
         total_loss = loss_loc + loss_conf
-        tf.summary.scalar('total_loss', total_loss)
+        # tf.summary.scalar('total_loss', total_loss)
 
         return total_loss
 

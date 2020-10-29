@@ -2,6 +2,8 @@ import tensorflow as tf
 from tensorflow.keras import layers, Sequential, Model, Input, utils
 import numpy as np
 
+import sys
+
 aspect_ratios = [1.0, 0.5, 2.0]
 nclasses = 20
 img_size = 300
