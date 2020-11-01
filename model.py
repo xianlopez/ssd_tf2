@@ -88,7 +88,7 @@ def build_model():
     pred5 = PredictionHead(name='head5')(conv10_2)
     pred6 = PredictionHead(name='head6')(conv11_2)
 
-    output = layers.concatenate([pred1, pred2, pred3, pred4, pred5, pred6], axis=1)
+    output = layers.concatenate([pred1, pred2, pred3, pred4, pred5, pred6], axis=1)  # (?, nanchors, 4 + nclasses + 1)
 
     return Model(inputs=inputs, outputs=output, name="SSD")
 

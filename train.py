@@ -13,6 +13,8 @@ from parallel_reading import AsyncParallelReader
 from loss import SSDLoss
 from model import build_model, build_anchors
 import mean_ap
+from non_maximum_suppression import batch_non_maximum_suppression
+import tools
 
 nclasses = 20
 img_size = 300
@@ -39,21 +41,26 @@ tensorboard_callback = keras.callbacks.TensorBoard(log_dir=logdir, update_freq='
 nepochs = 3
 
 @tf.function
-def train_step(batch_imgs, batch_gt, batch_gt_raw):
+def train_step(batch_imgs, batch_gt):
     with tf.GradientTape() as tape:
         net_output = model(batch_imgs, training=True)
         loss_value = loss(batch_gt, net_output)
         loss_value += sum(model.losses)
     grads = tape.gradient(loss_value, model.trainable_variables)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
-    map = mean_ap.mean_ap_on_batch(net_output, batch_gt_raw, model.anchors)
-    return loss_value
+    return loss_value, net_output
 
 with AsyncParallelReader(voc_path, nclasses, anchors, img_size, batch_size, nworkers) as reader:
     for epoch in range(nepochs):
         print("\nStart epoch ", epoch + 1)
         for batch_idx in range(reader.nbatches):
             batch_imgs, batch_gt, batch_gt_raw = reader.get_batch()
-            loss_value = train_step(batch_imgs, batch_gt, batch_gt_raw)
+            loss_value, net_output = train_step(batch_imgs, batch_gt)
             print("    batch " + str(batch_idx + 1) + "/" + str(reader.nbatches) + ", loss: %.2e" % loss_value.numpy())
+
+            predictions_full = tools.keep_best_class(net_output.numpy())  # (batch_size, nanchors, 6)
+            predictions_full = batch_non_maximum_suppression(predictions_full, nclasses)  # (batch_size, nanchors, 6)
+            predictions = tools.remove_background_predictions(predictions_full, nclasses)
+            mAP = mean_ap.mean_ap_on_batch(predictions, batch_gt_raw, anchors)
+            print('mAP = %.4f' % mAP)
 

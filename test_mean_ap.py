@@ -103,7 +103,6 @@ def test_compute_ap_11():
     assert np.abs(AP - expectedAP) < 1e-6
 
 
-
 if __name__ == '__main__':
     print('Tests for mean_ap')
     test_compute_ap_1()
