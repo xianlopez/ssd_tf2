@@ -9,6 +9,8 @@ from multiprocessing import Pool, RawArray, Process, Pipe
 
 # TODO: I should use the original VOC dataset, not my modified version.
 
+max_gt_boxes = 100
+
 image_means = np.array([123.0, 117.0, 104.0])
 image_means /= 255.0
 image_means = np.reshape(image_means, [1, 1, 3])
@@ -16,11 +18,13 @@ image_means = np.reshape(image_means, [1, 1, 3])
 var_dict = {}
 
 
-def init_worker(batch_imgs_Arr, batch_imgs_shape, batch_gt_Arr, batch_gt_shape):
+def init_worker(batch_imgs_Arr, batch_imgs_shape, batch_gt_Arr, batch_gt_shape, batch_gt_raw_Arr, batch_gt_raw_shape):
     var_dict['batch_imgs_Arr'] = batch_imgs_Arr
     var_dict['batch_imgs_shape'] = batch_imgs_shape
     var_dict['batch_gt_Arr'] = batch_gt_Arr
     var_dict['batch_gt_shape'] = batch_gt_shape
+    var_dict['batch_gt_raw_Arr'] = batch_gt_raw_Arr
+    var_dict['batch_gt_raw_shape'] = batch_gt_raw_shape
 
 
 # def read_image(opts, rawname, position_in_batch):
@@ -46,6 +50,7 @@ def read_image(inputs):
             height = int(line_split[4])
             boxes.append([xmin, ymin, width, height, classid])
     boxes = np.array(boxes, dtype=np.float32)
+    assert boxes.shape[0] <= max_gt_boxes
 
     # Data augmentation:
     img, boxes = data_augmentation(img, boxes)
@@ -54,13 +59,20 @@ def read_image(inputs):
     img = cv2.resize(img, (opts.img_size, opts.img_size))
     img = img - image_means
 
+    # Expand raw boxes:
+    boxes_raw = np.zeros((max_gt_boxes, 5), np.float32)
+    boxes_raw[:boxes.shape[0], :] = boxes
+    boxes_raw[boxes.shape[0]:, -1] = opts.nclasses  # Mark the rest as background
+
     # Wrap shared data as numpy arrays:
     batch_imgs_np = np.frombuffer(var_dict['batch_imgs_Arr']).reshape(var_dict['batch_imgs_shape'])
     batch_gt_np = np.frombuffer(var_dict['batch_gt_Arr']).reshape(var_dict['batch_gt_shape'])
+    batch_gt_raw_np = np.frombuffer(var_dict['batch_gt_raw_Arr']).reshape(var_dict['batch_gt_raw_shape'])
 
     # Assign values:
     batch_imgs_np[position_in_batch, :, :, :] = img
     batch_gt_np[position_in_batch, :, :] = encoding.encode_gt(boxes, opts.anchors, opts.nclasses)
+    batch_gt_raw_np[position_in_batch, :, :] = boxes_raw
 
     return
 
@@ -88,15 +100,16 @@ class ParallelReader:
         # Initialize batch buffers:
         self.batch_imgs_shape = (self.opts.batch_size, self.opts.img_size, self.opts.img_size, 3)
         self.batch_gt_shape = (self.opts.batch_size, len(self.opts.anchors), 4 + self.opts.nclasses + 1)
-        # Strangely enough, if I use np.prod it doesn't work...
-        # batch_imgs_Arr = RawArray('d', np.prod(batch_imgs_shape))
-        # batch_gt_Arr = RawArray('d', np.prod(batch_gt_shape))
+        self.batch_gt_raw_shape = (self.opts.batch_size, max_gt_boxes, 5)
         self.batch_imgs_Arr = RawArray('d', self.batch_imgs_shape[0] * self.batch_imgs_shape[1] *
                                   self.batch_imgs_shape[2] * self.batch_imgs_shape[3])
         self.batch_gt_Arr = RawArray('d', self.batch_gt_shape[0] * self.batch_gt_shape[1] * self.batch_gt_shape[2])
+        self.batch_gt_raw_Arr = RawArray('d', self.batch_gt_raw_shape[0] * self.batch_gt_raw_shape[1] *
+                                         self.batch_gt_raw_shape[2])
         # Initialize pool:
         self.pool = Pool(processes=self.opts.nworkers, initializer=init_worker, initargs=
-            (self.batch_imgs_Arr, self.batch_imgs_shape, self.batch_gt_Arr, self.batch_gt_shape))
+            (self.batch_imgs_Arr, self.batch_imgs_shape, self.batch_gt_Arr, self.batch_gt_shape,
+             self.batch_gt_raw_Arr, self.batch_gt_raw_shape))
 
     def fetch_batch(self):
         input_data = []
@@ -108,6 +121,7 @@ class ParallelReader:
 
         batch_imgs_np = np.frombuffer(self.batch_imgs_Arr).reshape(self.batch_imgs_shape)
         batch_gt_np = np.frombuffer(self.batch_gt_Arr).reshape(self.batch_gt_shape)
+        batch_gt_raw_np = np.frombuffer(self.batch_gt_raw_Arr).reshape(self.batch_gt_raw_shape)
 
         self.batch_index += 1
         if self.batch_index == self.nbatches:
@@ -115,17 +129,17 @@ class ParallelReader:
             random.shuffle(self.raw_names)
             print('Rewinding data!')
 
-        return batch_imgs_np, batch_gt_np
+        return batch_imgs_np, batch_gt_np, batch_gt_raw_np
 
 
 def async_reader_loop(opts, conn):
     print('async_reader_loop is alive!')
     reader = ParallelReader(opts)
     conn.send(reader.nbatches)
-    batch_imgs, batch_gt = reader.fetch_batch()
+    batch_imgs, batch_gt, batch_gt_raw = reader.fetch_batch()
     while conn.recv() == 'GET':
-        conn.send([batch_imgs, batch_gt])
-        batch_imgs, batch_gt = reader.fetch_batch()
+        conn.send([batch_imgs, batch_gt, batch_gt_raw])
+        batch_imgs, batch_gt, batch_gt_raw = reader.fetch_batch()
     print('async_reader_loop says goodbye!')
 
 
@@ -140,8 +154,8 @@ class AsyncParallelReader:
 
     def get_batch(self):
         self.conn1.send('GET')
-        batch_imgs, batch_gt = self.conn1.recv()
-        return batch_imgs, batch_gt
+        batch_imgs, batch_gt, batch_gt_raw = self.conn1.recv()
+        return batch_imgs, batch_gt, batch_gt_raw
 
     def __exit__(self, type, value, traceback):
         print('Ending AsyncParallelReader')

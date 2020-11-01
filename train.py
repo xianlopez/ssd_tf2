@@ -12,6 +12,7 @@ import tensorflow as tf
 from parallel_reading import AsyncParallelReader
 from loss import SSDLoss
 from model import build_model, build_anchors
+import mean_ap
 
 nclasses = 20
 img_size = 300
@@ -38,20 +39,21 @@ tensorboard_callback = keras.callbacks.TensorBoard(log_dir=logdir, update_freq='
 nepochs = 3
 
 @tf.function
-def train_step(batch_imgs, batch_gt):
+def train_step(batch_imgs, batch_gt, batch_gt_raw):
     with tf.GradientTape() as tape:
         net_output = model(batch_imgs, training=True)
         loss_value = loss(batch_gt, net_output)
         loss_value += sum(model.losses)
     grads = tape.gradient(loss_value, model.trainable_variables)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
+    map = mean_ap.mean_ap_on_batch(net_output, batch_gt_raw, model.anchors)
     return loss_value
 
 with AsyncParallelReader(voc_path, nclasses, anchors, img_size, batch_size, nworkers) as reader:
     for epoch in range(nepochs):
-        print("\nStart epoch ", epoch)
+        print("\nStart epoch ", epoch + 1)
         for batch_idx in range(reader.nbatches):
-            batch_imgs, batch_gt = reader.get_batch()
-            loss_value = train_step(batch_imgs, batch_gt)
-            print("    batch " + str(batch_idx + 1) + ", loss: " + str(loss_value.numpy()))
+            batch_imgs, batch_gt, batch_gt_raw = reader.get_batch()
+            loss_value = train_step(batch_imgs, batch_gt, batch_gt_raw)
+            print("    batch " + str(batch_idx + 1) + "/" + str(reader.nbatches) + ", loss: %.2e" % loss_value.numpy())
 
