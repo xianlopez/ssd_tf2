@@ -1,11 +1,10 @@
 import numpy as np
 from compute_iou import compute_iou_flat
-from decoding import decode_coords
 
 th_nms = 0.5
 
 
-def batch_non_maximum_suppression(predictions_full, nclasses):
+def batch_non_maximum_suppression_slow(predictions_full, nclasses):
     # predictions_full: (batch_size, nanchors, 6) [xmin, ymin, width, height, class_id, conf]
     predictions_full_nms = np.zeros_like(predictions_full)
     for i in range(predictions_full.shape[0]):
@@ -40,36 +39,33 @@ def non_maximum_suppression_fast(predictions_full, nclasses):
     remaining_preds = []
     for class_id in range(nclasses):
         preds_this_class = predictions_full[np.where(np.abs(predictions_full[:, 4] - class_id) < 0.5)[0], :]
-        if len(preds_this_class) == 0:
-            continue
-        idxs = np.argsort(preds_this_class[:, 5])
-        preds_this_class = preds_this_class[idxs]
-        pick = non_maximum_suppression_fast_on_class(preds_this_class[:, :4])
+        pick = non_maximum_suppression_fast_on_class(preds_this_class)
         preds_this_class = preds_this_class[pick]
         remaining_preds.append(preds_this_class)
 
     return np.concatenate(remaining_preds, axis=0)
 
 
-def non_maximum_suppression_fast_on_class(sorted_boxes):
-    # sorted_boxes: (npreds_class, 4) [xmin, ymin, width, height]
-    # We assume the boxes are sorted in ascending order of confidence.
+def non_maximum_suppression_fast_on_class(boxes):
+    # boxes: (npreds_class, 4) [xmin, ymin, width, height, class_id, conf]
     # Note 1: strongly based on this:
     # https://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
     # The main modifications are the use of IOU instead of their 'overlap', and that I
     # sort the boxes by confidence.
     # Note 2: This kind of non-maximum suppression doesn't allow for "chain" suppression.
-    assert len(sorted_boxes.shape) == 2
-    assert sorted_boxes.shape[1] == 4
+    assert len(boxes.shape) == 2
+    assert boxes.shape[1] == 6
 
-    x1 = sorted_boxes[:, 0]
-    y1 = sorted_boxes[:, 1]
-    x2 = sorted_boxes[:, 0] + sorted_boxes[:, 2]
-    y2 = sorted_boxes[:, 1] + sorted_boxes[:, 3]
-    area = sorted_boxes[:, 2] * sorted_boxes[:, 3]
+    if len(boxes) == 0:
+        return []
 
-    npreds_class = sorted_boxes.shape[0]
-    idxs = np.arange(npreds_class)
+    x1 = boxes[:, 0]
+    y1 = boxes[:, 1]
+    x2 = boxes[:, 0] + boxes[:, 2]
+    y2 = boxes[:, 1] + boxes[:, 3]
+    area = boxes[:, 2] * boxes[:, 3]
+
+    idxs = np.argsort(boxes[:, 5])
 
     pick = []
     while len(idxs) > 0:
