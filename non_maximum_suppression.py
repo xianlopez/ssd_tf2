@@ -9,11 +9,11 @@ def batch_non_maximum_suppression(predictions_full, nclasses):
     # predictions_full: (batch_size, nanchors, 6) [xmin, ymin, width, height, class_id, conf]
     predictions_full_nms = np.zeros_like(predictions_full)
     for i in range(predictions_full.shape[0]):
-        predictions_full_nms[i, :, :] = non_maximum_suppression(predictions_full[i, :, :], nclasses)
+        predictions_full_nms[i, :, :] = non_maximum_suppression_slow(predictions_full[i, :, :], nclasses)
     return predictions_full_nms
 
 
-def non_maximum_suppression(predictions_full, nclasses):
+def non_maximum_suppression_slow(predictions_full, nclasses):
     # predictions_full: (nanchors, 6) [xmin, ymin, width, height, class_id, conf]
     assert len(predictions_full.shape) == 2
     coords = predictions_full[:, :4]
@@ -28,3 +28,67 @@ def non_maximum_suppression(predictions_full, nclasses):
                     predictions_full[sorted_indexes[i], 4] = nclasses  # Assign background
                     break
     # Note: This function doesn't return anything, because predictions_full is modified in place.
+
+
+def non_maximum_suppression_fast(predictions_full, nclasses):
+    # predictions_full: (nanchors, 6) [xmin, ymin, width, height, class_id, conf]
+    assert len(predictions_full.shape) == 2
+
+    if len(predictions_full) == 0:
+        return np.zeros((0, 6), dtype=np.float32)
+
+    remaining_preds = []
+    for class_id in range(nclasses):
+        preds_this_class = predictions_full[np.where(np.abs(predictions_full[:, 4] - class_id) < 0.5)[0], :]
+        if len(preds_this_class) == 0:
+            continue
+        idxs = np.argsort(preds_this_class[:, 5])
+        preds_this_class = preds_this_class[idxs]
+        pick = non_maximum_suppression_fast_on_class(preds_this_class[:, :4])
+        preds_this_class = preds_this_class[pick]
+        remaining_preds.append(preds_this_class)
+
+    return np.concatenate(remaining_preds, axis=0)
+
+
+def non_maximum_suppression_fast_on_class(sorted_boxes):
+    # sorted_boxes: (npreds_class, 4) [xmin, ymin, width, height]
+    # We assume the boxes are sorted in ascending order of confidence.
+    # Note 1: strongly based on this:
+    # https://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
+    # The main modifications are the use of IOU instead of their 'overlap', and that I
+    # sort the boxes by confidence.
+    # Note 2: This kind of non-maximum suppression doesn't allow for "chain" suppression.
+    assert len(sorted_boxes.shape) == 2
+    assert sorted_boxes.shape[1] == 4
+
+    x1 = sorted_boxes[:, 0]
+    y1 = sorted_boxes[:, 1]
+    x2 = sorted_boxes[:, 0] + sorted_boxes[:, 2]
+    y2 = sorted_boxes[:, 1] + sorted_boxes[:, 3]
+    area = sorted_boxes[:, 2] * sorted_boxes[:, 3]
+
+    npreds_class = sorted_boxes.shape[0]
+    idxs = np.arange(npreds_class)
+
+    pick = []
+    while len(idxs) > 0:
+        last = len(idxs) - 1
+        i = idxs[last]
+        pick.append(i)
+
+        xx1 = np.maximum(x1[i], x1[idxs[:last]])
+        xx2 = np.minimum(x2[i], x2[idxs[:last]])
+        yy1 = np.maximum(y1[i], y1[idxs[:last]])
+        yy2 = np.minimum(y2[i], y2[idxs[:last]])
+
+        ww = np.maximum(0, xx2 - xx1)
+        hh = np.maximum(0, yy2 - yy1)
+
+        intersection = ww * hh
+        union = area[i] + area[idxs[:last]] - intersection
+        iou = intersection / union
+
+        idxs = np.delete(idxs, np.concatenate(([last], np.where(iou > th_nms)[0])))
+
+    return pick
