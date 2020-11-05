@@ -13,7 +13,7 @@ from parallel_reading import AsyncParallelReader
 from loss import SSDLoss
 from model import build_model, build_anchors
 import mean_ap
-from non_maximum_suppression import batch_non_maximum_suppression_slow
+from non_maximum_suppression import batch_non_maximum_suppression_fast
 import tools
 
 nclasses = 20
@@ -58,9 +58,10 @@ with AsyncParallelReader(voc_path, nclasses, anchors, img_size, batch_size, nwor
             loss_value, net_output = train_step(batch_imgs, batch_gt)
             print("    batch " + str(batch_idx + 1) + "/" + str(reader.nbatches) + ", loss: %.2e" % loss_value.numpy())
 
-            predictions_full = tools.keep_best_class(net_output.numpy())  # (batch_size, nanchors, 6)
-            predictions_full = batch_non_maximum_suppression_slow(predictions_full, nclasses)  # (batch_size, nanchors, 6)
-            predictions = tools.remove_background_predictions(predictions_full, nclasses)
-            mAP = mean_ap.mean_ap_on_batch(predictions, batch_gt_raw, anchors)
-            print('mAP = %.4f' % mAP)
+            if batch_idx % 20 == 0:
+                predictions_full = tools.keep_best_class(net_output.numpy())  # (batch_size, nanchors, 6)
+                predictions_nms = batch_non_maximum_suppression_fast(predictions_full, nclasses)
+                predictions = tools.remove_background_predictions(predictions_nms, nclasses)
+                mAP = mean_ap.mean_ap_on_batch(predictions, batch_gt_raw, nclasses)
+                print('mAP = %.4f' % mAP)
 

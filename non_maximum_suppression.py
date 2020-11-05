@@ -12,6 +12,14 @@ def batch_non_maximum_suppression_slow(predictions_full, nclasses):
     return predictions_full_nms
 
 
+def batch_non_maximum_suppression_fast(predictions_full, nclasses):
+    # predictions_full: (batch_size, nanchors, 6) [xmin, ymin, width, height, class_id, conf]
+    predictions_nms = []
+    for i in range(predictions_full.shape[0]):
+        predictions_nms.append(non_maximum_suppression_fast(predictions_full[i, :, :], nclasses))
+    return predictions_nms
+
+
 def non_maximum_suppression_slow(predictions_full, nclasses):
     # predictions_full: (nanchors, 6) [xmin, ymin, width, height, class_id, conf]
     assert len(predictions_full.shape) == 2
@@ -43,7 +51,7 @@ def non_maximum_suppression_fast(predictions_full, nclasses):
         preds_this_class = preds_this_class[pick]
         remaining_preds.append(preds_this_class)
 
-    return np.concatenate(remaining_preds, axis=0)
+    return np.concatenate(remaining_preds, axis=0)  # (num_preds_nms, 6)
 
 
 def non_maximum_suppression_fast_on_class(boxes):

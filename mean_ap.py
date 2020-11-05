@@ -21,25 +21,11 @@ def mean_ap_on_batch(batch_predictoins, batch_gt_raw, nclasses):
 def mean_ap_on_image(predictions, gt_boxes_raw, nclasses):
     # predictions: (npreds, 6) [xmin, ymin, width, height, class_id, conf]
     # gt_boxes_raw: (max_gt_boxes, 5) [xmin, ymin, width, height, classid)
-    ngt = -1
-    for i in range(gt_boxes_raw.shape[0]):
-        if gt_boxes_raw[i, 4] >= 0.5:
-            ngt = i
-            break
-    assert ngt >= 0
-    gt_boxes = gt_boxes_raw[:ngt, :]
-    iou = compute_iou_flat(predictions[:, :4], gt_boxes)  # (npreds, ngt)
-    sorted_iou_indexes = np.argsort(-iou)  # (npreds, ngt)
-    iou_matches = iou > th_iou_map  # (npreds, ngt)
-
-    npreds = predictions.shape[0]
-    preds_classes = predictions[:, 4]  # (npreds)
-    confidences = predictions[:, 5]  # (npreds)
-
     APs = np.zeros((nclasses), np.float32)
     for class_id in range(nclasses):
-        APs[class_id] = compute_ap()
-
+        preds_this_class = np.take(predictions, predictions[:, 4] == class_id, axis=0)
+        gt_this_class = np.take(gt_boxes_raw, gt_boxes_raw[:, 4] == class_id, axis=0)
+        APs[class_id] = compute_ap(preds_this_class, gt_this_class)
     return np.mean(APs)
 
 
