@@ -29,19 +29,19 @@ def photometric_distortions(img):
 def photometric_sequence_1(rgb):
     rgb = random_adjust_brightness(rgb)
     rgb = random_adjust_contrast(rgb)
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_BGR2HSV)
     hsv = random_adjust_saturation(hsv)
     hsv = random_adjust_hue(hsv)
-    rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
     return rgb
 
 
 def photometric_sequence_2(rgb):
     rgb = random_adjust_brightness(rgb)
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_BGR2HSV)
     hsv = random_adjust_saturation(hsv)
     hsv = random_adjust_hue(hsv)
-    rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    rgb = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
     rgb = random_adjust_contrast(rgb)
     return rgb
 
@@ -57,7 +57,7 @@ def random_adjust_contrast(rgb):
     factor_min = 0.5
     factor_max = 1.5
     factor = random.uniform(factor_min, factor_max)
-    rgb = (rgb - 127.5) * factor + 127.5
+    rgb = (rgb - 0.5) * factor + 0.5
     rgb = np.clip(rgb, 0.0, 1.0)
     return rgb
 
@@ -121,7 +121,8 @@ def expand_and_crop(img, boxes):
                     x_center = boxes[i, 0] + float(boxes[i, 2]) / 2
                     y_center = boxes[i, 1] + float(boxes[i, 3]) / 2
                     if patch_x0_rel < x_center < patch_x1_rel and patch_y0_rel < y_center < patch_y1_rel:
-                        if compute_iou_single([patch_x0_rel, patch_y0_rel, patch_width_rel, patch_height_rel], boxes[i, :4]) > iou_th:
+                        patch_coords = np.array([patch_x0_rel, patch_y0_rel, patch_width_rel, patch_height_rel])
+                        if compute_iou_single(patch_coords, boxes[i, :4]) > iou_th:
                             patch_is_valid = True
                             break
                 if patch_is_valid:
