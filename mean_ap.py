@@ -23,8 +23,8 @@ def mean_ap_on_image(predictions, gt_boxes_raw, nclasses):
     # gt_boxes_raw: (max_gt_boxes, 5) [xmin, ymin, width, height, classid)
     APs = np.zeros((nclasses), np.float32)
     for class_id in range(nclasses):
-        preds_this_class = np.take(predictions, predictions[:, 4] == class_id, axis=0)
-        gt_this_class = np.take(gt_boxes_raw, gt_boxes_raw[:, 4] == class_id, axis=0)
+        preds_this_class = np.take(predictions, np.where(predictions[:, 4] == class_id)[0], axis=0)
+        gt_this_class = np.take(gt_boxes_raw, np.where(gt_boxes_raw[:, 4] == class_id)[0], axis=0)
         APs[class_id] = compute_ap(preds_this_class, gt_this_class)
     return np.mean(APs)
 

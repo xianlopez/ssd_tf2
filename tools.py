@@ -15,7 +15,7 @@ def remove_background_predictions(predictions_nms, nclasses):
     # (num_preds_nms, 6) [xmin, ymin, width, height, class_id, conf]
     predictions = []
     for i in range(len(predictions_nms)):
-        predictions.append(np.take(predictions_nms[i], predictions_nms[i][:, 4] != nclasses, axis=0))
+        predictions.append(np.take(predictions_nms[i], np.where(predictions_nms[i][:, 4] != nclasses)[0], axis=0))
     return predictions
 
 
