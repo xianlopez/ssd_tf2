@@ -27,13 +27,15 @@ def init_worker(batch_imgs_Arr, batch_imgs_shape, batch_gt_Arr, batch_gt_shape, 
     var_dict['batch_gt_raw_shape'] = batch_gt_raw_shape
 
 
-# def read_image(opts, rawname, position_in_batch):
 def read_image(inputs):
     opts = inputs[0]
     rawname = inputs[1]
     position_in_batch = inputs[2]
     # Read image:
     img = cv2.imread(os.path.join(opts.voc_path, 'images', rawname + '.jpg'))
+
+    img_height, img_width, _ = img.shape
+
     img = img.astype(np.float32) / 255.0
 
     # Read ground truth:
@@ -48,6 +50,11 @@ def read_image(inputs):
             ymin = int(line_split[2])
             width = int(line_split[3])
             height = int(line_split[4])
+            # Make relative:
+            xmin = float(xmin) / float(img_width)
+            ymin = float(ymin) / float(img_height)
+            width = float(width) / float(img_width)
+            height = float(height) / float(img_height)
             boxes.append([xmin, ymin, width, height, classid])
     boxes = np.array(boxes, dtype=np.float32)
     assert boxes.shape[0] <= max_gt_boxes
