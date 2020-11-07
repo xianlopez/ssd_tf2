@@ -18,15 +18,33 @@ anchors_sizes = {
 }
 
 
-class PredictionHead(layers.Layer):
+class ChannelsL2Normalization(layers.Layer):
     def __init__(self, **kwargs):
+        super(ChannelsL2Normalization, self).__init__(**kwargs)
+        self.w = tf.Variable(initial_value=20, dtype=tf.float32)
+
+    def call(self, x):
+        x = tf.math.l2_normalize(x, axis=-1)
+        x = x * self.w
+        return x
+
+
+class PredictionHead(layers.Layer):
+    def __init__(self, normalize=False, **kwargs):
         super(PredictionHead, self).__init__(**kwargs)
+        if normalize:
+            name = self.name + '_l2norm'
+            self.norm_layer = ChannelsL2Normalization(name=name)
+        else:
+            self.norm_layer = None
         self.num_ouptuts = len(aspect_ratios) * (4 + nclasses + 1)  # 4 for the coordinates, 1 for background.
         self.conv = layers.Conv2D(self.num_ouptuts, 3, kernel_initializer=tf.initializers.he_normal(),
                                   kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg), padding='same')
         self.reshape = layers.Reshape((-1, 4 + nclasses + 1))
 
     def call(self, x):
+        if self.norm_layer:
+            x = self.norm_layer(x)
         x = self.conv(x)
         x = self.reshape(x)
         return x  # (?, nanchors_in_layer, 4 + nclasses + 1)
@@ -104,7 +122,7 @@ def build_model():
                       padding='valid', name='conv11_2')(x)  # (?, 1, 1, 256)
 
     # Prediction heads:
-    pred1 = PredictionHead(name='head1')(conv4_3)
+    pred1 = PredictionHead(name='head1', normalize=True)(conv4_3)
     pred2 = PredictionHead(name='head2')(conv7)
     pred3 = PredictionHead(name='head3')(conv8_2)
     pred4 = PredictionHead(name='head4')(conv9_2)
