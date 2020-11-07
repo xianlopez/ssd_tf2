@@ -159,4 +159,7 @@ def load_vgg16_weigths(model):
     assert np.abs(model.layers[15].weights[0].numpy()[1, 0, 63, 269] - -0.011236359) < 1e-6
     assert np.abs(model.layers[16].weights[1].numpy()[510] - 0.23517226) < 1e-6
     assert np.abs(model.layers[17].weights[0].numpy()[0, 2, 0, 400] - -0.008714244) < 1e-6
+    assert np.abs(model.layers[19].weights[0].numpy()[1, 2, 1, 39] - -0.0012724434) < 1e-6
+    assert np.abs(model.layers[19].weights[1].numpy()[789] - 0.15145591) < 1e-6
+    assert np.abs(model.layers[20].weights[0].numpy()[0, 0, 1023, 1000] - -0.0027780728) < 1e-6
 
