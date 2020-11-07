@@ -1,9 +1,9 @@
 import tensorflow as tf
 from tensorflow.keras import layers, Sequential, Model, Input, utils
 import numpy as np
+from tensorflow.keras.regularizers import l2
 
-import sys
-
+l2_reg = 5e-4
 aspect_ratios = [1.0, 0.5, 2.0]
 nclasses = 20
 img_size = 300
@@ -22,7 +22,8 @@ class PredictionHead(layers.Layer):
     def __init__(self, **kwargs):
         super(PredictionHead, self).__init__(**kwargs)
         self.num_ouptuts = len(aspect_ratios) * (4 + nclasses + 1)  # 4 for the coordinates, 1 for background.
-        self.conv = layers.Conv2D(self.num_ouptuts, 3, kernel_initializer=tf.initializers.he_normal(), padding='same')
+        self.conv = layers.Conv2D(self.num_ouptuts, 3, kernel_initializer=tf.initializers.he_normal(),
+                                  kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg), padding='same')
         self.reshape = layers.Reshape((-1, 4 + nclasses + 1))
 
     def call(self, x):
@@ -34,50 +35,72 @@ class PredictionHead(layers.Layer):
 def build_model():
     # VGG-16 blocks:
     inputs = Input(shape=(img_size, img_size, 3))
-    x = layers.Conv2D(64, 3, activation='relu', padding='same', name='conv1_1')(inputs)
-    x = layers.Conv2D(64, 3, activation='relu', padding='same', name='conv1_2')(x)
+    x = layers.Conv2D(64, 3, activation='relu', padding='same', name='conv1_1',
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg))(inputs)
+    x = layers.Conv2D(64, 3, activation='relu', padding='same', name='conv1_2',
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg))(x)
     x = layers.MaxPool2D(name='pool1')(x)  # (?, 150, 150, 64)
-    x = layers.Conv2D(128, 3, activation='relu', padding='same', name='conv2_1')(x)
-    x = layers.Conv2D(128, 3, activation='relu', padding='same', name='conv2_2')(x)
+    x = layers.Conv2D(128, 3, activation='relu', padding='same', name='conv2_1',
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg))(x)
+    x = layers.Conv2D(128, 3, activation='relu', padding='same', name='conv2_2',
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg))(x)
     x = layers.MaxPool2D(name='pool2')(x)  # (?, 75, 75, 128)
-    x = layers.Conv2D(256, 3, activation='relu', padding='same', name='conv3_1')(x)
-    x = layers.Conv2D(256, 3, activation='relu', padding='same', name='conv3_2')(x)
-    x = layers.Conv2D(256, 3, activation='relu', padding='same', name='conv3_3')(x)
+    x = layers.Conv2D(256, 3, activation='relu', padding='same', name='conv3_1',
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg))(x)
+    x = layers.Conv2D(256, 3, activation='relu', padding='same', name='conv3_2',
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg))(x)
+    x = layers.Conv2D(256, 3, activation='relu', padding='same', name='conv3_3',
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg))(x)
     x = layers.MaxPool2D(padding='same', name='pool3')(x)  # (?, 38, 38, 256)
-    x = layers.Conv2D(512, 3, activation='relu', padding='same', name='conv4_1')(x)
-    x = layers.Conv2D(512, 3, activation='relu', padding='same', name='conv4_2')(x)
+    x = layers.Conv2D(512, 3, activation='relu', padding='same', name='conv4_1',
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg))(x)
+    x = layers.Conv2D(512, 3, activation='relu', padding='same', name='conv4_2',
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg))(x)
     conv4_3 = layers.Conv2D(512, 3, activation='relu', padding='same', name='conv4_3')(x)
     x = layers.MaxPool2D(name='pool4')(conv4_3)  # (?, 19, 19, 512)
-    x = layers.Conv2D(512, 3, activation='relu', padding='same', name='conv5_1')(x)
-    x = layers.Conv2D(512, 3, activation='relu', padding='same', name='conv5_2')(x)
-    x = layers.Conv2D(512, 3, activation='relu', padding='same', name='conv5_3')(x)
+    x = layers.Conv2D(512, 3, activation='relu', padding='same', name='conv5_1',
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg))(x)
+    x = layers.Conv2D(512, 3, activation='relu', padding='same', name='conv5_2',
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg))(x)
+    x = layers.Conv2D(512, 3, activation='relu', padding='same', name='conv5_3',
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg))(x)
     x = layers.MaxPool2D(pool_size=(3, 3), padding='same', strides=(1, 1), name='pool5')(x)  # (?, 19, 19, 512)
 
     # Extra blocks:
     kernel_init = tf.initializers.he_normal()
     x = layers.Conv2D(1024, 3, dilation_rate=6, activation='relu', kernel_initializer=kernel_init,
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg),
                       padding='same', name='conv6')(x)  # (?, 19, 19, 1024)
     conv7 = layers.Conv2D(1024, 1, activation='relu', kernel_initializer=kernel_init,
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg),
                       padding='same', name='conv7')(x)  # (?, 19, 19, 1024)
 
     x = layers.Conv2D(256, 1, activation='relu', kernel_initializer=kernel_init,
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg),
                       padding='same', name='conv8_1')(conv7)  # (?, 19, 19, 256)
     conv8_2 = layers.Conv2D(512, 3, activation='relu', strides=2, kernel_initializer=kernel_init,
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg),
                       padding='same', name='conv8_2')(x)  # (?, 10, 10, 512)
 
     x = layers.Conv2D(128, 1, activation='relu', kernel_initializer=kernel_init,
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg),
                       padding='same', name='conv9_1')(conv8_2)  # (?, 10, 10, 128)
     conv9_2 = layers.Conv2D(256, 3, activation='relu', strides=2, kernel_initializer=kernel_init,
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg),
                       padding='same', name='conv9_2')(x)  # (?, 5, 5, 256)
 
     x = layers.Conv2D(128, 1, activation='relu', kernel_initializer=kernel_init,
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg),
                       padding='same', name='conv10_1')(conv9_2)  # (?, 5, 5, 128)
     conv10_2 = layers.Conv2D(256, 3, activation='relu', kernel_initializer=kernel_init,
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg),
                       padding='valid', name='conv10_2')(x)  # (?, 3, 3, 256)
 
     x = layers.Conv2D(128, 1, activation='relu', kernel_initializer=kernel_init,
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg),
                       padding='same', name='conv11_1')(conv10_2)  # (?, 3, 3, 128)
     conv11_2 = layers.Conv2D(256, 3, activation='relu', kernel_initializer=kernel_init,
+                      kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg),
                       padding='valid', name='conv11_2')(x)  # (?, 1, 1, 256)
 
     # Prediction heads:
