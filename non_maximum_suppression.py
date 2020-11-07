@@ -51,7 +51,9 @@ def non_maximum_suppression_fast(predictions_full, nclasses):
         preds_this_class = preds_this_class[pick]
         remaining_preds.append(preds_this_class)
 
-    return np.concatenate(remaining_preds, axis=0)  # (num_preds_nms, 6)
+    result = np.concatenate(remaining_preds, axis=0)  # (num_preds_nms, 6)
+
+    return result
 
 
 def non_maximum_suppression_fast_on_class(boxes):

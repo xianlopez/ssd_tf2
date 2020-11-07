@@ -10,7 +10,8 @@ class SSDLoss(tf.losses.Loss):
 
     def call(self, y_true, y_pred):
         # Input format (both y_true and y_pred):
-        # (?, nanchors, 4 + nclasses + 1) [xmin, ymin, width, height, class1, ..., classN, background]
+        # (?, nanchors, 4 + nclasses + 1)
+        # [xmin_enc, ymin_enc, width_enc, height_enc, class1, ..., classN, background]
 
         pred_locs = y_pred[:, :, :4]
         logits = y_pred[:, :, 4:]
@@ -59,13 +60,3 @@ class SSDLoss(tf.losses.Loss):
 
         return total_loss
 
-#
-#
-# if __name__ == "__main__":
-#     myloss = SSDLoss()
-#
-#     x = tf.ones((16, 1289, 25), tf.float32)
-#     y = tf.ones((16, 1289, 25), tf.float32)
-#     z = myloss(x, y)
-#
-#     print(z)
