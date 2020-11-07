@@ -123,17 +123,17 @@ def build_anchors(model):
     anchors = np.concatenate(anchors_all_heads, axis=0)  # (nanchors, 4)
     return anchors
 
-#
-# if True:
-# # if __name__ == "__main__":
-#     model = build_model()
-#     model.build((None, img_size, img_size, 3))
-#     model.summary()
-#
-#     # import numpy as np
-#     # x = np.zeros((16, 300, 300, 3), dtype=np.float32)
-#     # output = model(x)
-#     # print('output.shape')
-#     # print(output.shape)
 
+def load_vgg16_weigths(model):
+    print('Loading VGG-16 weights...')
+    checkpoint = tf.train.Checkpoint(model=model)
+    checkpoint.read('weights/vgg16')
+    # We'll assert the loaded was right by probing some particular weigths:
+    assert np.abs(model.layers[1].weights[0].numpy()[0, 0, 0, 0] - 0.42947057) < 1e-6
+    assert np.abs(model.layers[1].weights[1].numpy()[25] - 0.7446502) < 1e-6
+    assert np.abs(model.layers[2].weights[0].numpy()[2, 2, 63, 63] - 0.016082443) < 1e-6
+    assert np.abs(model.layers[4].weights[1].numpy()[1] - 0.06440781) < 1e-6
+    assert np.abs(model.layers[15].weights[0].numpy()[1, 0, 63, 269] - -0.011236359) < 1e-6
+    assert np.abs(model.layers[16].weights[1].numpy()[510] - 0.23517226) < 1e-6
+    assert np.abs(model.layers[17].weights[0].numpy()[0, 2, 0, 400] - -0.008714244) < 1e-6
 

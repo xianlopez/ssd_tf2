@@ -11,7 +11,7 @@ np.random.seed(0)
 import tensorflow as tf
 from parallel_reading import AsyncParallelReader
 from loss import SSDLoss
-from model import build_model, build_anchors
+from model import build_model, build_anchors, load_vgg16_weigths
 import mean_ap
 from non_maximum_suppression import batch_non_maximum_suppression_fast
 import tools
@@ -20,6 +20,7 @@ nclasses = 20
 img_size = 300
 
 model = build_model()
+load_vgg16_weigths(model)
 model.build((None, img_size, img_size, 3))
 model.summary()
 
