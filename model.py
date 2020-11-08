@@ -146,18 +146,22 @@ def build_anchors(model):
         anchors_this_head = np.zeros(shape=(grid_size, grid_size, len(aspect_ratios), 4), dtype=np.float32)
         for ratio_idx in range(len(aspect_ratios)):
             ratio = aspect_ratios[ratio_idx]
-            width = anchor_size * ratio
-            height = anchor_size / ratio
+            width = anchor_size * np.sqrt(ratio)
+            height = anchor_size / np.sqrt(ratio)
             for row in range(grid_size):
                 center_y = grid[row]
                 y_min = max(0, center_y - height / 2.0)
+                y_max = min(1.0, center_y + height / 2.0)
+                row_height = y_max - y_min
                 for col in range(grid_size):
                     center_x = grid[col]
                     x_min = max(0, center_x - width / 2.0)
-                    anchors_this_head[row, col, ratio_idx, 0] = y_min
-                    anchors_this_head[row, col, ratio_idx, 1] = x_min
-                    anchors_this_head[row, col, ratio_idx, 2] = min(width, 1.0 - y_min)
-                    anchors_this_head[row, col, ratio_idx, 3] = min(height, 1.0 - x_min)
+                    x_max = min(1.0, center_x + width / 2.0)
+                    col_width = x_max - x_min
+                    anchors_this_head[row, col, ratio_idx, 0] = x_min
+                    anchors_this_head[row, col, ratio_idx, 1] = y_min
+                    anchors_this_head[row, col, ratio_idx, 2] = col_width
+                    anchors_this_head[row, col, ratio_idx, 3] = row_height
         anchors_this_head = np.reshape(anchors_this_head, [-1, 4])
         anchors_all_heads.append(anchors_this_head)
 
