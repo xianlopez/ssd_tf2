@@ -1,6 +1,7 @@
 import numpy as np
 import tools
 from non_maximum_suppression import batch_non_maximum_suppression_fast
+import scipy
 
 
 def decode_box(box_enc, anchor):
@@ -42,8 +43,10 @@ def decode_box(box_enc, anchor):
 def decode_preds(net_output, anchors, nclasses):
     # net_output:  (batch_size, nanchors, 4 + nclasses + 1)
     coords_enc = net_output[:, :, :4]
+    logits = net_output[:, :, 4:]
+    confs = scipy.special.softmax(logits, axis=-1)  # (batch_size, nanchors, nclasses + 1)
     coords_dec = decode_coords_batch(coords_enc, anchors)  # (batch_size, nanchors, 4)
-    net_output_dec = np.concatenate([coords_dec, net_output[:, :, 4:]], axis=-1)
+    net_output_dec = np.concatenate([coords_dec, confs], axis=-1)
     predictions_full = tools.keep_best_class(net_output_dec)  # (batch_size, nanchors, 6)
     predictions_nms = batch_non_maximum_suppression_fast(predictions_full, nclasses)
     predictions = tools.remove_background_predictions(predictions_nms, nclasses)
