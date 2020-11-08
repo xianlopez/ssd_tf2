@@ -37,8 +37,8 @@ class PredictionHead(layers.Layer):
             self.norm_layer = ChannelsL2Normalization(name=name)
         else:
             self.norm_layer = None
-        self.num_ouptuts = len(aspect_ratios) * (4 + nclasses + 1)  # 4 for the coordinates, 1 for background.
-        self.conv = layers.Conv2D(self.num_ouptuts, 3, kernel_initializer=tf.initializers.he_normal(),
+        num_outputs = len(aspect_ratios) * (4 + nclasses + 1)  # 4 for the coordinates, 1 for background.
+        self.conv = layers.Conv2D(num_outputs, 3, kernel_initializer=tf.initializers.he_normal(),
                                   kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg), padding='same')
         self.reshape = layers.Reshape((-1, 4 + nclasses + 1))
 
