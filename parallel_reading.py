@@ -119,10 +119,12 @@ class ParallelReader:
              self.batch_gt_raw_Arr, self.batch_gt_raw_shape))
 
     def fetch_batch(self):
+        names = []
         input_data = []
         for position_in_batch in range(self.opts.batch_size):
             data_idx = self.batch_index * self.opts.batch_size + position_in_batch
             input_data.append((self.opts, self.raw_names[data_idx], position_in_batch))
+            names.append(self.raw_names[data_idx])
 
         self.pool.map(read_image, input_data)
 
@@ -134,19 +136,19 @@ class ParallelReader:
         if self.batch_index == self.nbatches:
             self.batch_index = 0
             random.shuffle(self.raw_names)
-            print('Rewinding data!')
+            # print('Rewinding data!')
 
-        return batch_imgs_np, batch_gt_np, batch_gt_raw_np
+        return batch_imgs_np, batch_gt_np, batch_gt_raw_np, names
 
 
 def async_reader_loop(opts, conn):
     print('async_reader_loop is alive!')
     reader = ParallelReader(opts)
     conn.send(reader.nbatches)
-    batch_imgs, batch_gt, batch_gt_raw = reader.fetch_batch()
+    batch_imgs, batch_gt, batch_gt_raw, names = reader.fetch_batch()
     while conn.recv() == 'GET':
-        conn.send([batch_imgs, batch_gt, batch_gt_raw])
-        batch_imgs, batch_gt, batch_gt_raw = reader.fetch_batch()
+        conn.send([batch_imgs, batch_gt, batch_gt_raw, names])
+        batch_imgs, batch_gt, batch_gt_raw, names = reader.fetch_batch()
     print('async_reader_loop says goodbye!')
 
 
@@ -161,8 +163,8 @@ class AsyncParallelReader:
 
     def get_batch(self):
         self.conn1.send('GET')
-        batch_imgs, batch_gt, batch_gt_raw = self.conn1.recv()
-        return batch_imgs, batch_gt, batch_gt_raw
+        batch_imgs, batch_gt, batch_gt_raw, names = self.conn1.recv()
+        return batch_imgs, batch_gt, batch_gt_raw, names
 
     def __exit__(self, type, value, traceback):
         print('Ending AsyncParallelReader')
