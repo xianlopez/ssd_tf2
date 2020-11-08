@@ -33,3 +33,22 @@ def draw_boxes(img, boxes):
         box_ymax_abs = min(box_ymin_abs + box_height_abs, height - 1)
         img = cv2.rectangle(img, (box_xmin_abs, box_ymin_abs), (box_xmax_abs, box_ymax_abs), color, thickness=2)
     return img
+
+
+def display_anchors(img, anchors):
+    # anchors: (nanchors, 4) [xmin, ymin, width, height]
+    height, width, _ = img.shape
+    color = (0.0, 1.0, 1.0)
+    # for i in range(2000, anchors.shape[0]):
+    for i in range(anchors.shape[0]):
+        img_to_show = img.copy()
+        anc_xmin_abs = int(round(anchors[i, 0] * width))
+        anc_ymin_abs = int(round(anchors[i, 1] * height))
+        anc_width_abs = int(round(anchors[i, 2] * width))
+        anc_height_abs = int(round(anchors[i, 3] * height))
+        anc_xmax_abs = anc_xmin_abs + anc_width_abs
+        anc_ymax_abs = anc_ymin_abs + anc_height_abs
+        img_to_show = cv2.rectangle(img_to_show, (anc_xmin_abs, anc_ymin_abs),
+                                    (anc_xmax_abs, anc_ymax_abs), color, thickness=2)
+        cv2.imshow('anchors', img_to_show)
+        cv2.waitKey(100)
