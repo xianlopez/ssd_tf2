@@ -21,7 +21,7 @@ class SSDLoss(tf.losses.Loss):
 
         prior_loss_conf = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels)  # (?, nanchors)
 
-        positives_mask = labels[:, :, -1] > 0.5  # (?, nanchors)
+        positives_mask = labels[:, :, -1] < 0.5  # (?, nanchors)
         positives_mask_int = tf.cast(positives_mask, tf.int32)  # (?, nanchors)
         positives_mask_float = tf.cast(positives_mask_int, tf.float32)  # (?, nanchors)
         negatives_mask_float = 1 - positives_mask_float  # (?, nanchors)
@@ -31,7 +31,7 @@ class SSDLoss(tf.losses.Loss):
         nanchors_total = batch_size * nanchors
         n_negatives = nanchors_total - n_positives
         n_negatives_keep = tf.cast(tf.minimum(tf.maximum(1, n_positives * negative_ratio), n_negatives), tf.int32)
-        neg_loss_conf_all = tf.reshape(prior_loss_conf * negatives_mask_float, [-1])
+        neg_loss_conf_all = tf.reshape(prior_loss_conf * negatives_mask_float, [-1])  # (nanchors_total)
         _, indices = tf.nn.top_k(neg_loss_conf_all, k=n_negatives_keep, sorted=False)
         negatives_keep = tf.scatter_nd(indices=tf.expand_dims(indices, axis=1),
                                        updates=tf.ones_like(indices, dtype=tf.int32), shape=tf.shape(neg_loss_conf_all))
