@@ -31,7 +31,7 @@ optimizer = tf.keras.optimizers.SGD(learning_rate=1e-3, momentum=0.9)
 
 model.compile(loss=loss, optimizer=optimizer)
 
-voc_path = '/home/xian/datasets/VOC0712'
+voc_path = '/home/xian/datasets/VOCdevkit'
 batch_size = 12
 nworkers = 6
 
@@ -58,7 +58,7 @@ def train_step(batch_imgs, batch_gt, step):
     return loss_value, net_output
 
 
-with AsyncParallelReader(voc_path, nclasses, anchors, img_size, batch_size, nworkers) as reader:
+with AsyncParallelReader(voc_path, nclasses, anchors, img_size, batch_size, nworkers, 'train') as reader:
     step = -1
     for epoch in range(nepochs):
         print("\nStart epoch ", epoch + 1)
