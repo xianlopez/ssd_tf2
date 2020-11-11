@@ -4,6 +4,7 @@ import tensorflow as tf
 import os
 import shutil
 import cv2
+from sys import stdout
 
 random.seed(0)
 np.random.seed(0)
@@ -93,12 +94,14 @@ with AsyncParallelReader(reader_ops, 'train') as train_reader, \
             step += 1
             batch_imgs, batch_gt, batch_gt_raw, names = train_reader.get_batch()
             loss_value, net_output = train_step(batch_imgs, batch_gt, tf.cast(tf.convert_to_tensor(step), tf.int64))
-            print("    batch " + str(batch_idx + 1) + "/" + str(train_reader.nbatches) + ", loss: %.2e" % loss_value.numpy())
+            stdout.write("\rbatch %d/%d, loss: %.2e    " % (batch_idx + 1, train_reader.nbatches, loss_value.numpy()))
+            stdout.flush()
             train_summary_writer.flush()
 
             if (batch_idx + 1) % period_batches_display == 0:
                 predictions = decode_preds(net_output.numpy(), anchors, nclasses)
                 mAP = mean_ap.mean_ap_on_batch(predictions, batch_gt_raw, nclasses)
+                stdout.write('\n')
                 print('mAP = %.4f' % mAP)
                 print('Showing image: ' + names[0])
                 img = batch_imgs[0, ...]
@@ -119,6 +122,7 @@ with AsyncParallelReader(reader_ops, 'train') as train_reader, \
                 # Sometimes the first image shows as black. This seems to be some issue when displaying only, the
                 # image itself is fine. If I call waitKey with 0 or with a very large number, the image appears fine.
                 cv2.waitKey(1)
+        stdout.write('\n')
 
         # Evaluation:
         if (epoch + 1) % period_epochs_check_val == 0:
@@ -133,11 +137,13 @@ with AsyncParallelReader(reader_ops, 'train') as train_reader, \
 
                 predictions = decode_preds(net_output.numpy(), anchors, nclasses)
                 mAP_batch = mean_ap.mean_ap_on_batch(predictions, batch_gt_raw, nclasses)
-                print("    batch %d/%d, loss: %.2e, mAP: %.4f" %
-                      (batch_idx + 1, val_reader.nbatches, loss_value.numpy(), mAP_batch))
+                stdout.write("\rbatch %d/%d, loss: %.2e, mAP: %.4f    " %
+                             (batch_idx + 1, val_reader.nbatches, loss_value.numpy(), mAP_batch))
+                stdout.flush()
                 mAP_sum += mAP_batch
 
                 if (batch_idx + 1) % period_batches_display == 0:
+                    stdout.write('\n')
                     print('Showing image: ' + names[0])
                     img = batch_imgs[0, ...]
                     img = img + image_means
@@ -158,6 +164,7 @@ with AsyncParallelReader(reader_ops, 'train') as train_reader, \
                     # image itself is fine. If I call waitKey with 0 or with a very large number, the image appears fine.
                     cv2.waitKey(1)
 
+            stdout.write('\n')
             val_loss /= float(val_reader.nbatches)
             mAP = mAP_sum / float(val_reader.nbatches)
             print('Mean mAP on the whole epoch: %.4f' % mAP)
