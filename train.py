@@ -15,6 +15,12 @@ import mean_ap
 import tools
 from decoding import decode_preds, decode_gt_batch
 
+def lr_schedule(step):
+    if step < 60000:
+        return 1e-3
+    else:
+        return 1e-4
+
 nclasses = 20
 img_size = 300
 
@@ -27,7 +33,7 @@ anchors = build_anchors(model)
 
 loss = SSDLoss()
 
-optimizer = tf.keras.optimizers.SGD(learning_rate=1e-3, momentum=0.9)
+optimizer = tf.keras.optimizers.SGD(learning_rate=lr_schedule(0), momentum=0.9)
 
 model.compile(loss=loss, optimizer=optimizer)
 
@@ -81,6 +87,7 @@ with AsyncParallelReader(reader_ops, 'train') as train_reader, \
     step = -1
     for epoch in range(nepochs):
         print("\nStart epoch ", epoch + 1)
+        optimizer.learning_rate = lr_schedule(max(step, 0))
         # Training:
         for batch_idx in range(train_reader.nbatches):
             step += 1
