@@ -69,6 +69,11 @@ def val_step(batch_imgs, batch_gt):
     loss_value += sum(model.losses)
     return loss_value, net_output
 
+# Refers to the epoch on which the validation loss was best. Used to keep the best model:
+best_epoch_idx = -1
+best_val_loss = np.inf
+
+checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
 
 reader_ops = ReaderOpts(voc_path, nclasses, anchors, img_size, batch_size, nworkers)
 with AsyncParallelReader(reader_ops, 'train') as train_reader, \
@@ -76,6 +81,7 @@ with AsyncParallelReader(reader_ops, 'train') as train_reader, \
     step = -1
     for epoch in range(nepochs):
         print("\nStart epoch ", epoch + 1)
+        # Training:
         for batch_idx in range(train_reader.nbatches):
             step += 1
             batch_imgs, batch_gt, batch_gt_raw, names = train_reader.get_batch()
@@ -107,13 +113,16 @@ with AsyncParallelReader(reader_ops, 'train') as train_reader, \
                 # image itself is fine. If I call waitKey with 0 or with a very large number, the image appears fine.
                 cv2.waitKey(1)
 
+        # Evaluation:
         if (epoch + 1) % period_epochs_check_val == 0:
             print('Running evaluation')
             mAP_sum = 0.0
+            val_loss = 0.0
             for batch_idx in range(val_reader.nbatches):
                 step += 1
                 batch_imgs, batch_gt, batch_gt_raw, names = val_reader.get_batch()
                 loss_value, net_output = val_step(batch_imgs, batch_gt)
+                val_loss += loss_value
 
                 predictions = decode_preds(net_output.numpy(), anchors, nclasses)
                 mAP_batch = mean_ap.mean_ap_on_batch(predictions, batch_gt_raw, nclasses)
@@ -142,7 +151,26 @@ with AsyncParallelReader(reader_ops, 'train') as train_reader, \
                     # image itself is fine. If I call waitKey with 0 or with a very large number, the image appears fine.
                     cv2.waitKey(1)
 
+            val_loss /= float(val_reader.nbatches)
             mAP = mAP_sum / float(val_reader.nbatches)
             print('Mean mAP on the whole epoch: %.4f' % mAP)
+
+        else:
+            val_loss = np.inf
+
+        # Save model:
+        print('Saving model')
+        checkpoint.write('ckpts/ckpt_' + str(epoch))
+        if val_loss < best_val_loss:
+            # Erase last epoch's and previous "best" checkpoint:
+            if best_epoch_idx >= 0:
+                tools.delete_checkpoint('ckpts/ckpt_' + str(best_epoch_idx))
+            if epoch > 0:
+                tools.delete_checkpoint('ckpts/ckpt_' + str(epoch - 1))
+            best_epoch_idx = epoch
+            best_val_loss = val_loss
+        elif best_val_loss != epoch - 1 and epoch > 0:
+            # Erase last epoch's checkpoint:
+            tools.delete_checkpoint('ckpts/ckpt_' + str(epoch - 1))
 
 
