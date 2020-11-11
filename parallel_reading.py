@@ -115,6 +115,7 @@ def read_image(inputs):
     rawname = inputs[1]
     year = inputs[2]
     position_in_batch = inputs[3]
+    do_data_aug = inputs[4]
     # Read image:
     img_path = os.path.join(opts.voc_path, 'VOC20' + year, 'JPEGImages', rawname + '.jpg')
     assert os.path.isfile(img_path)  # TODO: Remove me.
@@ -131,7 +132,8 @@ def read_image(inputs):
     assert boxes.shape[0] <= max_gt_boxes
 
     # Data augmentation:
-    img, boxes = data_augmentation(img, boxes)
+    if do_data_aug:
+        img, boxes = data_augmentation(img, boxes)
 
     # Preprocess image:
     img = cv2.resize(img, (opts.img_size, opts.img_size))
@@ -171,8 +173,10 @@ class ParallelReader:
         self.batch_index = 0
         if split == 'train':
             self.image_references = get_image_references_train(opts.voc_path)
+            self.do_data_aug = True
         elif split == 'val':
             self.image_references = get_image_references_val(opts.voc_path)
+            self.do_data_aug = False
         else:
             raise Exception('Unexpected split')
         print(str(len(self.image_references)) + ' images for ' + split)
@@ -199,7 +203,8 @@ class ParallelReader:
         for position_in_batch in range(self.opts.batch_size):
             data_idx = self.batch_index * self.opts.batch_size + position_in_batch
             input_data.append((self.opts, self.image_references[data_idx].name,
-                               self.image_references[data_idx].year, position_in_batch))
+                               self.image_references[data_idx].year, position_in_batch,
+                               self.do_data_aug))
             names.append(self.image_references[data_idx].year + '_' + self.image_references[data_idx].name)
 
         self.pool.map(read_image, input_data)
@@ -229,9 +234,8 @@ def async_reader_loop(opts, split, conn):
 
 
 class AsyncParallelReader:
-    def __init__(self, voc_path, nclasses, anchors, img_size, batch_size, nworkers, split):
+    def __init__(self, opts, split):
         print('Starting AsyncParallelReader')
-        opts = ReaderOpts(voc_path, nclasses, anchors, img_size, batch_size, nworkers)
         self.conn1, conn2 = Pipe()
         self.reader_process = Process(target=async_reader_loop, args=(opts, split, conn2))
         self.reader_process.start()
