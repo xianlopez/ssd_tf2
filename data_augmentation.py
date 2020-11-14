@@ -72,9 +72,10 @@ def random_adjust_saturation(hsv):
 
 
 def random_adjust_hue(hsv):
-    max_delta = 0.1
+    # I've seen the hue range here is [0, 360]
+    max_delta = 36.0
     delta = random.uniform(-max_delta, max_delta)
-    hsv[:, :, 0] = np.clip(hsv[:, :, 0] + delta, 0.0, 1.0)
+    hsv[:, :, 0] = np.clip(hsv[:, :, 0] + delta, 0.0, 360.0)
     return hsv
 
 
