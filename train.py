@@ -18,8 +18,10 @@ import drawing
 def lr_schedule(step):
     if step < 60000:
         return 1e-3
-    else:
+    if step < 80000:
         return 1e-4
+    else:
+        return 1e-5
 
 nclasses = 20
 img_size = 300
@@ -49,10 +51,10 @@ if os.path.exists(train_log_dir):
 train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 train_summary_writer.set_as_default()
 
-nepochs = 155
+nepochs = 200
 
 period_epochs_check_val = 5
-period_batches_display = 10
+period_batches_display = 20
 
 
 @tf.function
@@ -81,8 +83,8 @@ best_val_loss = np.inf
 
 checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
 
-# checkpoint_to_load = None
-checkpoint_to_load = 'ckpts/ckpt_4'
+checkpoint_to_load = None
+# checkpoint_to_load = 'ckpts/ckpt_4'
 if checkpoint_to_load is not None:
     read_result = checkpoint.read(checkpoint_to_load)
     read_result.assert_existing_objects_matched()
