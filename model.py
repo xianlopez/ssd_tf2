@@ -4,18 +4,33 @@ import numpy as np
 from tensorflow.keras.regularizers import l2
 
 l2_reg = 5e-4
-aspect_ratios = [1.0, 0.5, 2.0]
 nclasses = 20
 img_size = 300
 
-anchors_sizes = {
-    'head1': 0.15,
-    'head2': 0.25,
-    'head3': 0.35,
-    'head4': 0.50,
-    'head5': 0.7,
-    'head6': 0.85
+# The big mess of SSD's anchor boxes:
+anchor_sizes = [0.1, 0.2, 0.37, 0.54, 0.71, 0.88, 1.05]
+anchor_ratios = {
+    'head1': [1.0, 2.0, 0.5],
+    'head2': [1.0, 2.0, 0.5, 3.0, 1.0 / 3.0],
+    'head3': [1.0, 2.0, 0.5, 3.0, 1.0 / 3.0],
+    'head4': [1.0, 2.0, 0.5, 3.0, 1.0 / 3.0],
+    'head5': [1.0, 2.0, 0.5],
+    'head6': [1.0, 2.0, 0.5]
 }
+
+class FeatureMapAnchorsConf:
+    def __init__(self, aspect_ratios, size, next_size):
+        assert np.abs(aspect_ratios[0] - 1.0) < 1e-4
+        self.aspect_ratios = aspect_ratios
+        self.sizes = [size] * len(aspect_ratios)
+        if np.abs(aspect_ratios[0] - 1.0) < 1e-4:
+            self.aspect_ratios.append(1.0)
+            self.sizes.append(np.sqrt(size * next_size))
+
+anchors_conf = {}
+for i in range(6):
+    head_name = 'head' + str(i + 1)
+    anchors_conf[head_name] = FeatureMapAnchorsConf(anchor_ratios[head_name], anchor_sizes[i], anchor_sizes[i + 1])
 
 
 class ChannelsL2Normalization(layers.Layer):
@@ -37,7 +52,8 @@ class PredictionHead(layers.Layer):
             self.norm_layer = ChannelsL2Normalization(name=name)
         else:
             self.norm_layer = None
-        num_outputs = len(aspect_ratios) * (4 + nclasses + 1)  # 4 for the coordinates, 1 for background.
+        anc_conf = anchors_conf[self.name]
+        num_outputs = len(anc_conf.aspect_ratios) * (4 + nclasses + 1)  # 4 for the coordinates, 1 for background.
         self.conv = layers.Conv2D(num_outputs, 3, kernel_initializer=tf.initializers.he_normal(),
                                   kernel_regularizer=l2(l2=l2_reg), bias_regularizer=l2(l2=l2_reg), padding='same')
         self.reshape = layers.Reshape((-1, 4 + nclasses + 1))
@@ -139,15 +155,16 @@ def build_anchors(model):
     for head_num in range(1, 7):
         head_name = 'head' + str(head_num)
         head = model.get_layer(head_name)
-        anchor_size = anchors_sizes[head_name]
+        anc_conf = anchors_conf[head_name]
         grid_size = head.input_shape[1]
         grid = np.linspace(0, 1, grid_size + 1)[:grid_size] + 1.0 / (2.0 * grid_size)
 
-        anchors_this_head = np.zeros(shape=(grid_size, grid_size, len(aspect_ratios), 4), dtype=np.float32)
-        for ratio_idx in range(len(aspect_ratios)):
-            ratio = aspect_ratios[ratio_idx]
-            width = anchor_size * np.sqrt(ratio)
-            height = anchor_size / np.sqrt(ratio)
+        anchors_this_head = np.zeros(shape=(grid_size, grid_size, len(anc_conf.aspect_ratios), 4), dtype=np.float32)
+        for anc_type_idx in range(len(anc_conf.aspect_ratios)):
+            ratio = anc_conf.aspect_ratios[anc_type_idx]
+            anc_size = anc_conf.sizes[anc_type_idx]
+            width = anc_size * np.sqrt(ratio)
+            height = anc_size / np.sqrt(ratio)
             for row in range(grid_size):
                 center_y = grid[row]
                 y_min = max(0, center_y - height / 2.0)
@@ -158,10 +175,10 @@ def build_anchors(model):
                     x_min = max(0, center_x - width / 2.0)
                     x_max = min(1.0, center_x + width / 2.0)
                     col_width = x_max - x_min
-                    anchors_this_head[row, col, ratio_idx, 0] = x_min
-                    anchors_this_head[row, col, ratio_idx, 1] = y_min
-                    anchors_this_head[row, col, ratio_idx, 2] = col_width
-                    anchors_this_head[row, col, ratio_idx, 3] = row_height
+                    anchors_this_head[row, col, anc_type_idx, 0] = x_min
+                    anchors_this_head[row, col, anc_type_idx, 1] = y_min
+                    anchors_this_head[row, col, anc_type_idx, 2] = col_width
+                    anchors_this_head[row, col, anc_type_idx, 3] = row_height
         anchors_this_head = np.reshape(anchors_this_head, [-1, 4])
         anchors_all_heads.append(anchors_this_head)
 
