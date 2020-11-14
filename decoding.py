@@ -48,9 +48,9 @@ def decode_preds(net_output, anchors, nclasses):
     coords_dec = decode_coords_batch(coords_enc, anchors)  # (batch_size, nanchors, 4)
     net_output_dec = np.concatenate([coords_dec, confs], axis=-1)
     predictions_full = tools.keep_best_class(net_output_dec)  # (batch_size, nanchors, 6)
-    predictions_nms = batch_non_maximum_suppression_fast(predictions_full, nclasses)
+    predictions_nms = batch_non_maximum_suppression_fast(predictions_full, nclasses)  # List of (num_preds_nms, 6)
     predictions = tools.remove_background_predictions(predictions_nms, nclasses)
-    return predictions
+    return predictions  # List of (num_preds, 6)
 
 
 def decode_coords_batch(boxes_enc, anchors):
