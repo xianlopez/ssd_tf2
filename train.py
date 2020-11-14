@@ -82,6 +82,12 @@ best_val_loss = np.inf
 
 checkpoint = tf.train.Checkpoint(model=model, optimizer=optimizer)
 
+# checkpoint_to_load = None
+checkpoint_to_load = 'ckpts/ckpt_4'
+if checkpoint_to_load is not None:
+    read_result = checkpoint.read(checkpoint_to_load)
+    read_result.assert_existing_objects_matched()
+
 reader_ops = ReaderOpts(voc_path, nclasses, anchors, img_size, batch_size, nworkers)
 with AsyncParallelReader(reader_ops, 'train') as train_reader, \
      AsyncParallelReader(reader_ops, 'val') as val_reader:
