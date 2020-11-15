@@ -4,6 +4,7 @@ import tensorflow as tf
 import os
 import shutil
 from sys import stdout
+from datetime import datetime
 
 random.seed(0)
 np.random.seed(0)
@@ -97,6 +98,7 @@ with AsyncParallelReader(reader_ops, 'train') as train_reader, \
         print("\nStart epoch ", epoch + 1)
         optimizer.learning_rate = lr_schedule(max(train_step, 0))
         # Training:
+        epoch_start = datetime.now()
         for batch_idx in range(train_reader.nbatches):
             train_step += 1
             batch_imgs, batch_gt, batch_gt_raw, names = train_reader.get_batch()
@@ -109,10 +111,12 @@ with AsyncParallelReader(reader_ops, 'train') as train_reader, \
             if (batch_idx + 1) % period_batches_display == 0:
                 drawing.display_gt_and_preds(net_output, batch_imgs, batch_gt_raw, batch_gt, anchors, nclasses)
         stdout.write('\n')
+        print('Epoch computed in ' + str(datetime.now() - epoch_start))
 
         # Evaluation:
         if (epoch + 1) % period_epochs_check_val == 0:
             print('Running evaluation')
+            evaluation_start = datetime.now()
             val_loss = 0.0
             all_batches_gt_raw = []
             all_batches_net_output = []
@@ -134,6 +138,7 @@ with AsyncParallelReader(reader_ops, 'train') as train_reader, \
             val_loss /= float(val_reader.nbatches)
             mAP = mean_ap.compute_map(all_batches_net_output, all_batches_gt_raw, anchors)
             print('mAP: %.4f' % mAP)
+            print('Evaluation computed in ' + str(datetime.now() - evaluation_start))
         else:
             val_loss = np.inf
 
