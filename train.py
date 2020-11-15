@@ -143,13 +143,13 @@ with AsyncParallelReader(reader_ops, 'train') as train_reader, \
         if val_loss < best_val_loss:
             # Erase last epoch's and previous "best" checkpoint:
             if best_epoch_idx >= 0:
-                tools.delete_checkpoint('ckpts/ckpt_' + str(best_epoch_idx))
+                tools.delete_checkpoint_with_index(best_epoch_idx)
             if epoch > 0:
-                tools.delete_checkpoint('ckpts/ckpt_' + str(epoch - 1))
+                tools.delete_checkpoint_with_index(epoch - 1)
             best_epoch_idx = epoch
             best_val_loss = val_loss
         elif best_val_loss != epoch - 1 and epoch > 0:
             # Erase last epoch's checkpoint:
-            tools.delete_checkpoint('ckpts/ckpt_' + str(epoch - 1))
+            tools.delete_checkpoint_with_index(epoch - 1)
 
 
