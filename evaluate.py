@@ -83,11 +83,12 @@ if __name__ == '__main__':
     np.random.seed(0)
 
     parser = argparse.ArgumentParser(description='Evaluate a network')
-    parser.add_argument('--ckpt_idx', required=True, help='Index of the checkpoint to load')
-    parser.add_argument('--nworkers', default=8, help='number of processes to read data')
-    parser.add_argument('--batch_size', default=32)
-    parser.add_argument('--period_display', default=10, help='number of batches between to consecutive displays')
+    parser.add_argument('--ckpt_idx', type=int, required=True, help='index of the checkpoint to load')
+    parser.add_argument('--nworkers', type=int, default=8, help='number of processes to read data')
+    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--period_display', type=int, default=10,
+                        help='number of batches between two consecutive displays')
     args = parser.parse_args()
 
-    evaluate(int(args.ckpt_idx), int(args.period_display), int(args.nworkers), int(args.batch_size))
+    evaluate(args.ckpt_idx, args.period_display, args.nworkers, args.batch_size)
 
