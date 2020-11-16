@@ -17,15 +17,17 @@ img_size = 300
 voc_path = '/home/xian/datasets/VOCdevkit'
 
 
-@tf.function
-def val_step_fun(batch_imgs, batch_gt):
-    net_output = model(batch_imgs, training=True)
-    loss_value = loss(batch_gt, net_output)
-    loss_value += sum(model.losses)
-    return loss_value, net_output
+def build_val_step_fun(model, loss):
+    @tf.function
+    def val_step_fun(batch_imgs, batch_gt):
+        net_output = model(batch_imgs, training=True)
+        loss_value = loss(batch_gt, net_output)
+        loss_value += sum(model.losses)
+        return loss_value, net_output
+    return val_step_fun
 
 
-def evaluation_loop(val_reader, period_display):
+def evaluation_loop(val_step_fun, val_reader, period_display, anchors):
     print('Running evaluation')
     evaluation_start = datetime.now()
     val_loss = 0.0
@@ -51,18 +53,29 @@ def evaluation_loop(val_reader, period_display):
     print('mAP: %.4f' % mAP)
     print('loss: %.4e' % val_loss)
     print('Evaluation computed in ' + str(datetime.now() - evaluation_start))
+    return val_loss, mAP
 
 
-def evaluate(model, ckpt_idx, period_display, nworkers, batch_size):
+def evaluate(ckpt_idx, period_display, nworkers, batch_size):
+    model = build_model()
+    load_vgg16_weigths(model)
+    model.build((None, img_size, img_size, 3))
+    model.summary()
+    anchors = build_anchors(model)
+    loss = SSDLoss()
+    model.compile(loss=loss)
+
     checkpoint = tf.train.Checkpoint(model=model)
 
     checkpoint_to_load = 'ckpts/ckpt_' + str(ckpt_idx)
     read_result = checkpoint.read(checkpoint_to_load)
     read_result.assert_existing_objects_matched()
 
+    val_step_fun = build_val_step_fun(model, loss)
+
     reader_opts = ReaderOpts(voc_path, nclasses, anchors, img_size, batch_size, nworkers)
     with AsyncParallelReader(reader_opts, 'val') as val_reader:
-        evaluation_loop(val_reader, period_display)
+        evaluation_loop(val_step_fun, val_reader, period_display, anchors)
 
 
 if __name__ == '__main__':
@@ -76,14 +89,5 @@ if __name__ == '__main__':
     parser.add_argument('--period_display', default=10, help='number of batches between to consecutive displays')
     args = parser.parse_args()
 
-    model = build_model()
-    load_vgg16_weigths(model)
-    model.build((None, img_size, img_size, 3))
-    model.summary()
-    anchors = build_anchors(model)
-    loss = SSDLoss()
-    model.compile(loss=loss)
-
-    evaluate(model, int(args.ckpt_idx), int(args.period_display),
-             int(args.nworkers), int(args.batch_size))
+    evaluate(int(args.ckpt_idx), int(args.period_display), int(args.nworkers), int(args.batch_size))
 

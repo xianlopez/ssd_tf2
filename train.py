@@ -12,9 +12,9 @@ np.random.seed(0)
 from parallel_reading import AsyncParallelReader, ReaderOpts
 from loss import SSDLoss
 from model import build_model, build_anchors, load_vgg16_weigths
-import mean_ap
 import tools
 import drawing
+from evaluate import evaluation_loop, build_val_step_fun
 
 def lr_schedule(step):
     if step < 60000:
@@ -54,8 +54,8 @@ train_summary_writer.set_as_default()
 
 nepochs = 200
 
-period_epochs_check_val = 5
-period_batches_display = 20
+period_evaluate = 5
+period_display = 20
 
 
 @tf.function
@@ -71,12 +71,8 @@ def train_step_fun(batch_imgs, batch_gt, step):
     return loss_value, net_output
 
 
-@tf.function
-def val_step_fum(batch_imgs, batch_gt):
-    net_output = model(batch_imgs, training=True)
-    loss_value = loss(batch_gt, net_output)
-    loss_value += sum(model.losses)
-    return loss_value, net_output
+val_step_fun = build_val_step_fun(model, loss)
+
 
 # Refers to the epoch on which the validation loss was best. Used to keep the best model:
 best_epoch_idx = -1
@@ -90,9 +86,9 @@ if checkpoint_to_load is not None:
     read_result = checkpoint.read(checkpoint_to_load)
     read_result.assert_existing_objects_matched()
 
-reader_ops = ReaderOpts(voc_path, nclasses, anchors, img_size, batch_size, nworkers)
-with AsyncParallelReader(reader_ops, 'train') as train_reader, \
-     AsyncParallelReader(reader_ops, 'val') as val_reader:
+reader_opts = ReaderOpts(voc_path, nclasses, anchors, img_size, batch_size, nworkers)
+with AsyncParallelReader(reader_opts, 'train') as train_reader, \
+     AsyncParallelReader(reader_opts, 'val') as val_reader:
     train_step = -1
     for epoch in range(nepochs):
         print("\nStart epoch ", epoch + 1)
@@ -108,37 +104,14 @@ with AsyncParallelReader(reader_ops, 'train') as train_reader, \
             stdout.flush()
             train_summary_writer.flush()
 
-            if (batch_idx + 1) % period_batches_display == 0:
+            if (batch_idx + 1) % period_display == 0:
                 drawing.display_gt_and_preds(net_output, batch_imgs, batch_gt_raw, batch_gt, anchors, nclasses)
         stdout.write('\n')
         print('Epoch computed in ' + str(datetime.now() - epoch_start))
 
         # Evaluation:
-        if (epoch + 1) % period_epochs_check_val == 0:
-            print('Running evaluation')
-            evaluation_start = datetime.now()
-            val_loss = 0.0
-            all_batches_gt_raw = []
-            all_batches_net_output = []
-            for batch_idx in range(val_reader.nbatches):
-                batch_imgs, batch_gt, batch_gt_raw, names = val_reader.get_batch()
-                loss_value, net_output = val_step_fum(batch_imgs, batch_gt)
-                val_loss += loss_value
-
-                all_batches_gt_raw.append(batch_gt_raw)
-                all_batches_net_output.append(net_output.numpy())
-
-                stdout.write("\rbatch %d/%d, loss: %.2e    " %
-                             (batch_idx + 1, val_reader.nbatches, loss_value.numpy()))
-                stdout.flush()
-
-                if (batch_idx + 1) % period_batches_display == 0:
-                    drawing.display_gt_and_preds(net_output, batch_imgs, batch_gt_raw, batch_gt, anchors, nclasses)
-            stdout.write('\n')
-            val_loss /= float(val_reader.nbatches)
-            mAP = mean_ap.compute_map(all_batches_net_output, all_batches_gt_raw, anchors)
-            print('mAP: %.4f' % mAP)
-            print('Evaluation computed in ' + str(datetime.now() - evaluation_start))
+        if (epoch + 1) % period_evaluate == 0:
+            val_loss, mAP = evaluation_loop(val_step_fun, val_reader, period_display, anchors)
         else:
             val_loss = np.inf
 
